@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Type
 import gym
 import torch as th
 from stable_baselines3.common.policies import BasePolicy, register_policy
-from stable_baselines3.common.torch_layers import (
+from sb3_contrib.common_fqf_iqn.torch_layers_embeddings import (
     BaseFeaturesExtractor,
     CombinedExtractor,
     FlattenExtractor,
@@ -14,7 +14,7 @@ from stable_baselines3.common.type_aliases import Schedule
 from torch import nn
 
 
-class QuantileNetwork(BasePolicy):
+class ImplicitQuantileNetwork(BasePolicy):
     """
     Quantile network for QR-DQN
     :param observation_space: Observation space
@@ -46,7 +46,7 @@ class QuantileNetwork(BasePolicy):
 
         if net_arch is None:
             net_arch = [64, 64]
-
+#make changes here take state embeddings from the different Feature extractor 
         self.net_arch = net_arch
         self.activation_fn = activation_fn
         self.features_extractor = features_extractor
