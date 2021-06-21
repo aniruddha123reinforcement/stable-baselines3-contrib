@@ -14,23 +14,25 @@ class BaseFeaturesEmbedder(nn.Module):
     """
     Base class that represents a features extractor.
     :param observation_space:
-    :param features_dim: Number of features extracted.
+    :param states_embedding_dim: Number of features extracted.
     """
 
-    def __init__(self, observation_space: gym.Space):
-        super(BaseFeaturesExtractor, self).__init__()
+    def __init__(self, observation_space: gym.Space,states_embedding_dim: int = 0):
+        super(BaseFeaturesEmbedder, self).__init__()
         
         self._observation_space = observation_space
-        self._features_dim = features_dim
+        self._states_embedding_dim = states_embedding_dim
+    @property
+    def states_embedding_dim(self) -> int:
+        return self._states_embedding_dim
+
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         raise NotImplementedError()
-
-
-
-
-
-class NatureCNNEmbedder(BaseFeaturesExtractor):
+        
+        
+        
+class NatureCNN(BaseFeaturesEmbedder):
     """
     CNN from DQN nature paper:
         Mnih, Volodymyr, et al.
@@ -41,8 +43,8 @@ class NatureCNNEmbedder(BaseFeaturesExtractor):
         This corresponds to the number of unit for the last layer.
     """
 
-    def __init__(self, observation_space: gym.spaces.Box):
-        super(NatureCNN, self).__init__(observation_space)
+    def __init__(self, observation_space: gym.spaces.Box, states_embedding_dim: int = 256):
+        super(NatureCNN, self).__init__(observation_space, states_embedding_dim )
         # We assume CxHxW images (channels first)
         # Re-ordering will be done by pre-preprocessing or wrapper
         assert is_image_space(observation_space, check_channels=False), (
@@ -64,12 +66,66 @@ class NatureCNNEmbedder(BaseFeaturesExtractor):
             nn.Flatten(),
         )
 
+        # Compute shape by doing one forward pass
+        with th.no_grad():
+            n_flatten = self.cnn(th.as_tensor(observation_space.sample()[None]).float()).shape[1]
+
+        self.linear = nn.Sequential(nn.Linear(n_flatten, states_embedding_dim), nn.ReLU())
+
+    def forward(self, observations: th.Tensor) -> th.Tensor:
+        return self.linear(self.cnn(observations))
+
+
+
+
+
+class NatureCNNEmbedder(BaseFeaturesEmbedder):
+    """
+    CNN from DQN nature paper:
+        Mnih, Volodymyr, et al.
+        "Human-level control through deep reinforcement learning."
+        Nature 518.7540 (2015): 529-533.
+    :param observation_space:
+    :param states_embedding_dim: Number of features extracted.
+        This corresponds to the number of unit for the last layer.
+    """
+
+    def __init__(self, observation_space: gym.spaces.Box):
+        super(NatureCNN, self).__init__(observation_space,states_embedding_dim: int = 0)
+        # We assume CxHxW images (channels first)
+        # Re-ordering will be done by pre-preprocessing or wrapper
+        assert is_image_space(observation_space, check_channels=False), (
+            "You should use NatureCNN "
+            f"only with images not with {observation_space}\n"
+            "(you are probably using `CnnPolicy` instead of `MlpPolicy` or `MultiInputPolicy`)\n"
+            "If you are using a custom environment,\n"
+            "please check it using our env checker:\n"
+            "https://stable-baselines3.readthedocs.io/en/master/common/env_checker.html"
+        )
+        n_input_channels = observation_space.shape[0]
+        self.cnn = nn.Sequential(
+            nn.Conv2d(n_input_channels, 32, kernel_size=8, stride=4, padding=0),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
+            nn.ReLU(),
+            nn.Flatten(),
+        )
+        with th.no_grad():
+            n_flatten = self.cnn(th.as_tensor(observation_space.sample()[None]).float()).shape[1]
         # we will take the shape as is and use it as the embedding dimension for the state embeddings and also the tau embeddings 
         # no linear layers will be required in the Implicit Quantile Networks to encourage early interactions 
         
-
+        
+        self.identity = nn.Identity(n_flatten, n_flatten)
+        
+        #update the states embedding manually 
+        self._states_embedding_dim = n_flatten
+       
+        
     def forward(self, observations: th.Tensor) -> th.Tensor:
-        return self.cnn(observations)
+        return self.identity(self.cnn(observations))
 
 
 def create_mlp(
@@ -111,7 +167,7 @@ def create_mlp(
     return modules
 
 
-class MlpEmbedder(nn.Module):
+class MlpEmbedder(BaseFeaturesEmbedder):
     """
     Constructs an MLP that receives observations as an input and outputs a latent representation for the policy and
     a value network. The ``net_arch`` parameter allows to specify the amount and size of the hidden layers and how many
@@ -124,12 +180,12 @@ class MlpEmbedder(nn.Module):
                  net_arch: List[Union[int, Dict[str, List[int]]]],
                  activation_fn: Type[nn.Module],
                  device: Union[th.device, str] = "auto",
-                 mlp_embedding_dim:int=64
+                 state_embedding_dim:int=64
      ):
                 
         super(MlpEmbedder, self).__init__(
           observation_space, 
-          mlp_embedding_dim
+          state_embedding_dim
         )
         
         if net_arch is None:
@@ -137,24 +193,24 @@ class MlpEmbedder(nn.Module):
             
         self.net_arch = net_arch
         self.activation_fn = activation_fn
-        self.mlp_embedding_dim = mlp_embedding_dim
+       
         self.flatten = nn.Flatten()
          # Compute shape by doing one forward pass
         with th.no_grad():
             n_flatten = self.flatten(th.as_tensor(observation_space.sample()[None]).float()).shape[1]
         
-        self.mlp_embedding_layer = create_mlp(n_flatten, mlp_embedding_dim, self.net_arch, self.activation_fn)
+        self.mlp_embedding_layer = create_mlp(n_flatten,state_embedding_dim, self.net_arch, self.activation_fn)
         
         
         
      def forward(self, observations: th.Tensor) -> th.Tensor:
-        return self.mlp_embedding_layer(self.flatten(observations))
+        return self.flatten(self.mlp_embedding_layer(self.flatten(observations)))
 
         
     
 
 
-class CombinedExtractor(BaseFeaturesExtractor):
+class CombinedEmbedder(BaseFeaturesEmbedder):
     """
     Combined feature extractor for Dict observation spaces.
     Builds a feature extractor for each key of the space. Input from each space
@@ -165,21 +221,21 @@ class CombinedExtractor(BaseFeaturesExtractor):
         256 to avoid exploding network sizes.
     """
 
-    def __init__(self, observation_space: gym.spaces.Dict, cnn_output_dim: int = 256):
+    def __init__(self, observation_space: gym.spaces.Dict,cnn_output_dim: int = 256,mlp_output_dim: int = 64):
         # TODO we do not know features-dim here before going over all the items, so put something there. This is dirty!
-        super(CombinedExtractor, self).__init__(observation_space, features_dim=1)
+        super(CombinedEmbedder, self).__init__(observation_space,state_embedding_dim = 1)
 
         extractors = {}
 
         total_concat_size = 0
         for key, subspace in observation_space.spaces.items():
             if is_image_space(subspace):
-                extractors[key] = NatureCNN(subspace, features_dim=cnn_output_dim)
+                extractors[key] = NatureCNN(subspace,cnn_output_dim)
                 total_concat_size += cnn_output_dim
             else:
                 # The observation key is a vector, flatten it if needed
-                extractors[key] = nn.Flatten()
-                total_concat_size += get_flattened_obs_dim(subspace)
+                extractors[key] = MlpEmbedder(subspace,mlp_output_dim)
+                total_concat_size += mlp_output_dim
 
         self.extractors = nn.ModuleDict(extractors)
 
