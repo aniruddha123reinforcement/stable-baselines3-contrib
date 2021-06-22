@@ -217,7 +217,7 @@ class MlpEmbedder(BaseFeaturesEmbedder):
         
         
      def forward(self, observations: th.Tensor) -> th.Tensor:
-        return self.flatten(self.mlp_embedding_layer(self.flatten(observations)))
+        return self.mlp_embedding_layer(self.flatten(observations))
 
         
     
