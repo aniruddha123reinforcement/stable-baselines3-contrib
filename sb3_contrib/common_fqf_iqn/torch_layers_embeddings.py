@@ -29,7 +29,20 @@ class BaseFeaturesEmbedder(nn.Module):
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         raise NotImplementedError()
-        
+
+class FlattenEmbedder(BaseFeaturesEmbedder):
+    """
+    Feature extract that flatten the input.
+    Used as a placeholder when feature extraction is not needed.
+    :param observation_space:
+    """
+
+    def __init__(self, observation_space: gym.Space):
+        super(FlattenEmbedder, self).__init__(observation_space, get_flattened_obs_dim(observation_space))
+        self.flatten = nn.Flatten()
+
+    def forward(self, observations: th.Tensor) -> th.Tensor:
+        return self.flatten(observations)        
         
         
 class NatureCNN(BaseFeaturesEmbedder):
