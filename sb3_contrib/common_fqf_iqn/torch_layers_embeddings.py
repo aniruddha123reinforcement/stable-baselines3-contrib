@@ -215,7 +215,7 @@ class MlpEmbedder(BaseFeaturesEmbedder):
         
         
      def forward(self, observations: th.Tensor) -> th.Tensor:
-        return self.mlp_embedding_layer(self.flatten(observations))
+        return self.flatten(self.mlp_embedding_layer(self.flatten(observations)))
 
         
     
@@ -249,7 +249,7 @@ class CombinedEmbedder(BaseFeaturesEmbedder):
                 total_concat_size += mlp_output_dim
 
         self.extractors = nn.ModuleDict(extractors)
-
+        self.flatten  = nn.Flatten()
         # Update the features dim manually
         self._features_dim = total_concat_size
 
@@ -258,7 +258,7 @@ class CombinedEmbedder(BaseFeaturesEmbedder):
 
         for key, extractor in self.extractors.items():
             encoded_tensor_list.append(extractor(observations[key]))
-        return th.cat(encoded_tensor_list, dim=1)
+        return self.flatten(th.cat(encoded_tensor_list, dim=1))
 
 
 def get_actor_critic_arch(net_arch: Union[List[int], Dict[str, List[int]]]) -> Tuple[List[int], List[int]]:
