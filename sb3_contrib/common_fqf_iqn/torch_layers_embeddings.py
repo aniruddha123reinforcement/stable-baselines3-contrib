@@ -130,15 +130,13 @@ class NatureCNNEmbedder(BaseFeaturesEmbedder):
         # we will take the shape as is and use it as the embedding dimension for the state embeddings and also the tau embeddings 
         # no linear layers will be required in the Implicit Quantile Networks to encourage early interactions 
         
-        
-        self.identity = nn.Identity(n_flatten, n_flatten)
-        
+       
         #update the states embedding manually 
         self._states_embedding_dim = n_flatten
        
         
     def forward(self, observations: th.Tensor) -> th.Tensor:
-        return self.identity(self.cnn(observations))
+        return self.cnn(observations)
 
 
 def create_mlp(
