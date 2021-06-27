@@ -325,9 +325,7 @@ class BasePolicy(BaseModel):
         return low + (0.5 * (scaled_action + 1.0) * (high - low))
     
     
-    
-    
-    def register_policy(name: str, policy: Type[BasePolicy]) -> None:
+ def register_policy(name: str, policy: Type[BasePolicy]) -> None:
     """
     Register a policy, so it can be called using its name.
     e.g. SAC('MlpPolicy', ...) instead of SAC(MlpPolicy, ...).
