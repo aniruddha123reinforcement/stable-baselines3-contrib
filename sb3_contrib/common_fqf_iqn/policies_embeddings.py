@@ -21,12 +21,12 @@ from stable_baselines3.common.distributions import (
     make_proba_distribution,
 )
 from stable_baselines3.common.preprocessing import get_action_dim, is_image_space, maybe_transpose, preprocess_obs
-from stable_baselines3.common.torch_layers import (
-    BaseFeaturesExtractor,
-    CombinedExtractor,
-    FlattenExtractor,
-    MlpExtractor,
+from sb3_contrib.common_fqf_iqn.torch_layers_embeddings import (
+    BaseFeaturesEmbedder,
+    CombinedEmbedder,
+    FlattenEmbedder,
     NatureCNN,
+    NatureCNNEmbedder,
     create_mlp,
 )
 from stable_baselines3.common.type_aliases import Schedule
@@ -57,9 +57,9 @@ class BaseModel(nn.Module, ABC):
         self,
         observation_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
-        features_extractor_class: Type[BaseFeaturesExtractor] = FlattenExtractor,
-        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
-        features_extractor: Optional[nn.Module] = None,
+        features_embedder_class: Type[BaseFeaturesEmbedder] = FlattenEmbedder,
+        features_embedder_kwargs: Optional[Dict[str, Any]] = None,
+        features_embedder: Optional[nn.Module] = None,
         normalize_images: bool = True,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
@@ -74,24 +74,24 @@ class BaseModel(nn.Module, ABC):
 
         self.observation_space = observation_space
         self.action_space = action_space
-        self.features_extractor = features_extractor
+        self.features_embedder = features_embedder
         self.normalize_images = normalize_images
 
         self.optimizer_class = optimizer_class
         self.optimizer_kwargs = optimizer_kwargs
         self.optimizer = None  # type: Optional[th.optim.Optimizer]
 
-        self.features_extractor_class = features_extractor_class
-        self.features_extractor_kwargs = features_extractor_kwargs
+        self.features_embedder_class = features_embedder_class
+        self.features_extractor_kwargs = features_embedder_kwargs
 
     @abstractmethod
     def forward(self, *args, **kwargs):
         pass
 
-    def _update_features_extractor(
+    def _update_features_embedder(
         self,
         net_kwargs: Dict[str, Any],
-        features_extractor: Optional[BaseFeaturesExtractor] = None,
+        features_embedder: Optional[BaseFeaturesEmbedder] = None,
     ) -> Dict[str, Any]:
         """
         Update the network keyword arguments and create a new features extractor object if needed.
@@ -103,25 +103,25 @@ class BaseModel(nn.Module, ABC):
         :return: The updated keyword arguments
         """
         net_kwargs = net_kwargs.copy()
-        if features_extractor is None:
+        if features_embedder is None:
             # The features extractor is not shared, create a new one
-            features_extractor = self.make_features_extractor()
-        net_kwargs.update(dict(features_extractor=features_extractor, features_dim=features_extractor.features_dim))
+            features_embedder = self.make_features_embedder()
+        net_kwargs.update(dict(features_embedder=features_embedder, state_embedding_dim=features_embedder.states_embedding_dim))
         return net_kwargs
 
-    def make_features_extractor(self) -> BaseFeaturesExtractor:
-        """Helper method to create a features extractor."""
-        return self.features_extractor_class(self.observation_space, **self.features_extractor_kwargs)
+    def make_features_embedder(self) -> BaseFeaturesEmbedder:
+        """Helper method to create a features embedder."""
+        return self.features_embedder_class(self.observation_space, **self.features_embedder_kwargs)
 
-    def extract_features(self, obs: th.Tensor) -> th.Tensor:
+    def extract_embeddings(self, obs: th.Tensor) -> th.Tensor:
         """
         Preprocess the observation if needed and extract features.
         :param obs:
         :return:
         """
-        assert self.features_extractor is not None, "No features extractor was set"
+        assert self.features_embedder is not None, "No features embedder was set"
         preprocessed_obs = preprocess_obs(obs, self.observation_space, normalize_images=self.normalize_images)
-        return self.features_extractor(preprocessed_obs)
+        return self.features_embedder(preprocessed_obs)
 
     def _get_constructor_parameters(self) -> Dict[str, Any]:
         """
