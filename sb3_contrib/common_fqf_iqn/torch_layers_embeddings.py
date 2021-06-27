@@ -104,7 +104,7 @@ class NatureCNNEmbedder(BaseFeaturesEmbedder):
     """
 
     def __init__(self, observation_space: gym.spaces.Box):
-        super(NatureCNN, self).__init__(observation_space,states_embedding_dim: int = 0)
+        super(NatureCNN, self).__init__(observation_space,states_embedding_dim=1)
         # We assume CxHxW images (channels first)
         # Re-ordering will be done by pre-preprocessing or wrapper
         assert is_image_space(observation_space, check_channels=False), (
