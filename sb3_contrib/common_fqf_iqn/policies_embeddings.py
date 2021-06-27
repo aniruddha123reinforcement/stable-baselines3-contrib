@@ -25,6 +25,7 @@ from sb3_contrib.common_fqf_iqn.torch_layers_embeddings import (
     BaseFeaturesEmbedder,
     CombinedEmbedder,
     FlattenEmbedder,
+    MlpEmbedder,
     NatureCNN,
     NatureCNNEmbedder,
     create_mlp,
