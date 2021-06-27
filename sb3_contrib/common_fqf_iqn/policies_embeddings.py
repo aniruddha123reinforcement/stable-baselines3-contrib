@@ -323,4 +323,45 @@ class BasePolicy(BaseModel):
         """
         low, high = self.action_space.low, self.action_space.high
         return low + (0.5 * (scaled_action + 1.0) * (high - low))
+    
+    
+    
+    
+    def register_policy(name: str, policy: Type[BasePolicy]) -> None:
+    """
+    Register a policy, so it can be called using its name.
+    e.g. SAC('MlpPolicy', ...) instead of SAC(MlpPolicy, ...).
+    The goal here is to standardize policy naming, e.g.
+    all algorithms can call upon "MlpPolicy" or "CnnPolicy",
+    and they receive respective policies that work for them.
+    Consider following:
+    OnlinePolicy
+    -- OnlineMlpPolicy ("MlpPolicy")
+    -- OnlineCnnPolicy ("CnnPolicy")
+    OfflinePolicy
+    -- OfflineMlpPolicy ("MlpPolicy")
+    -- OfflineCnnPolicy ("CnnPolicy")
+    Two policies have name "MlpPolicy" and two have "CnnPolicy".
+    In `get_policy_from_name`, the parent class (e.g. OnlinePolicy)
+    is given and used to select and return the correct policy.
+    :param name: the policy name
+    :param policy: the policy class
+    """
+    sub_class = None
+    for cls in BasePolicy.__subclasses__():
+        if issubclass(policy, cls):
+            sub_class = cls
+            break
+    if sub_class is None:
+        raise ValueError(f"Error: the policy {policy} is not of any known subclasses of BasePolicy!")
+
+    if sub_class not in _policy_registry:
+        _policy_registry[sub_class] = {}
+    if name in _policy_registry[sub_class]:
+        # Check if the registered policy is same
+        # we try to register. If not so,
+        # do not override and complain.
+        if _policy_registry[sub_class][name] != policy:
+            raise ValueError(f"Error: the name {name} is already registered for a different policy, will not override.")
+    _policy_registry[sub_class][name] = policy
 
